@@ -1,0 +1,1092 @@
+"""
+Advanced AI Tourism Chatbot with Multi-Language Support
+Handles conversations in English & Italian
+Provides intelligent recommendations with real links and explanations
+"""
+from typing import List, Dict, Optional, Tuple
+import re
+from datetime import datetime
+from enum import Enum
+
+
+class Language(Enum):
+    """Supported languages"""
+    ENGLISH = "en"
+    ITALIAN = "it"
+
+
+class ConversationContext:
+    """Maintains conversation state for multi-turn conversations"""
+    def __init__(self):
+        self.language = Language.ENGLISH
+        self.last_intent = None
+        self.last_region = None
+        self.conversation_turn = 0
+        self.previous_recommendations = []
+
+
+class TouristRecommender:
+    """
+    Intelligent recommendation engine for Italian tourism
+    """
+    
+    # Enhanced datasets with real links
+    HOTEL_RECOMMENDATIONS = {
+        "rome": [
+            {
+                "name": "Hotel Artemide", 
+                "type": "5-star", 
+                "price": "€€€€", 
+                "description": "Luxury boutique hotel with rooftop views of Rome",
+                "link": "https://www.artemidehotel.com",
+                "rating": 4.8,
+                "address": "Via Vittorio Emanuele Orlando 3, 00185 Roma"
+            },
+            {
+                "name": "The Westin Excelsior", 
+                "type": "5-star", 
+                "price": "€€€€", 
+                "description": "Historic luxury hotel with spa and fine dining",
+                "link": "https://www.westinrome.com",
+                "rating": 4.7,
+                "address": "Via Vittorio Emanuele Orlando 28, 00185 Roma"
+            },
+            {
+                "name": "Guesthouse Girasole", 
+                "type": "3-star", 
+                "price": "€€", 
+                "description": "Charming family-run guesthouse in historic center",
+                "link": "https://www.girasolerome.com",
+                "rating": 4.5,
+                "address": "Via Filippo Turati 5, 00185 Roma"
+            },
+        ],
+        "venice": [
+            {
+                "name": "Palazzo Venart", 
+                "type": "5-star", 
+                "price": "€€€€", 
+                "description": "Palatial luxury on Grand Canal with gondola service",
+                "link": "https://www.palazzovenart.com",
+                "rating": 4.9,
+                "address": "Calle dei Botteri 2778, 30124 Venezia"
+            },
+            {
+                "name": "Hotel Danieli", 
+                "type": "5-star", 
+                "price": "€€€€", 
+                "description": "Legendary Venice hotel with stunning lagoon views",
+                "link": "https://www.danielihotel.com",
+                "rating": 4.8,
+                "address": "Riva degli Schiavoni, 4196, 30122 Venezia"
+            },
+            {
+                "name": "Locanda al Prato", 
+                "type": "3-star", 
+                "price": "€€", 
+                "description": "Cozy family-run rooms in quieter Venice area",
+                "link": "https://www.locandaalprato.com",
+                "rating": 4.4,
+                "address": "Rio Terà Dei Pensieri, 30126 Venezia"
+            },
+        ],
+        "florence": [
+            {
+                "name": "Four Seasons Hotel", 
+                "type": "5-star", 
+                "price": "€€€€", 
+                "description": "Luxury palace with Renaissance art and gardens",
+                "link": "https://www.fourseasons.com/florence",
+                "rating": 4.9,
+                "address": "Borgo Pinti 99, 50121 Firenze"
+            },
+            {
+                "name": "Hotel Brunelleschi", 
+                "type": "4-star", 
+                "price": "€€€", 
+                "description": "Historic hotel with character in city center",
+                "link": "https://www.hotelbrunelleschi.it",
+                "rating": 4.6,
+                "address": "Piazza Sant'Elisabetta 3, 50122 Firenze"
+            },
+            {
+                "name": "Toscana Rooms", 
+                "type": "2-star", 
+                "price": "€", 
+                "description": "Budget-friendly rooms with Tuscan charm",
+                "link": "https://www.toscanarooms.it",
+                "rating": 4.3,
+                "address": "Via dei Servi 15, 50122 Firenze"
+            },
+        ],
+        "milan": [
+            {
+                "name": "Principe di Savoia", 
+                "type": "5-star", 
+                "price": "€€€€", 
+                "description": "Iconic luxury hotel near Duomo and fashion district",
+                "link": "https://www.principepisavoia.com",
+                "rating": 4.8,
+                "address": "Piazza della Repubblica 17, 20124 Milano"
+            },
+            {
+                "name": "Excelsior Hotel Gallia", 
+                "type": "5-star", 
+                "price": "€€€€", 
+                "description": "Historic luxury with modern amenities",
+                "link": "https://www.excelsiorgallia.com",
+                "rating": 4.7,
+                "address": "Piazza Duca d'Aosta 9, 20124 Milano"
+            },
+            {
+                "name": "Ostello Bello", 
+                "type": "Hostel", 
+                "price": "€", 
+                "description": "Trendy hostel with social spaces and events",
+                "link": "https://www.ostellobello.com",
+                "rating": 4.5,
+                "address": "Via Torino 1-3, 20123 Milano"
+            },
+        ],
+        "naples": [
+            {
+                "name": "Vesuvius Hotel", 
+                "type": "5-star", 
+                "price": "€€€€", 
+                "description": "Luxury hotel overlooking Mount Vesuvius and bay",
+                "link": "https://www.vesuviushotel.it",
+                "rating": 4.7,
+                "address": "Via Partenope 44, 80121 Napoli"
+            },
+            {
+                "name": "Hotel Excelsior", 
+                "type": "4-star", 
+                "price": "€€€", 
+                "description": "Elegant hotel on waterfront with sea views",
+                "link": "https://www.excelsiornapolis.com",
+                "rating": 4.6,
+                "address": "Via Partenope 48, 80121 Napoli"
+            },
+            {
+                "name": "Casanova Hotel", 
+                "type": "3-star", 
+                "price": "€€", 
+                "description": "Comfortable mid-range near historic center",
+                "link": "https://www.casanovahotel.it",
+                "rating": 4.4,
+                "address": "Corso Umberto I 6, 80138 Napoli"
+            },
+        ],
+    }
+    
+    RESTAURANT_RECOMMENDATIONS = {
+        "rome": [
+            {
+                "name": "Armando al Pantheon", 
+                "cuisine": "Traditional Roman", 
+                "price": "€€", 
+                "specialty": "Carbonara & Cacio e Pepe",
+                "link": "https://www.armandoalpantheon.it",
+                "rating": 4.7,
+                "address": "Via dei Cestari 5, 00186 Roma"
+            },
+            {
+                "name": "La Pergola", 
+                "cuisine": "Fine Dining", 
+                "price": "€€€€", 
+                "specialty": "Contemporary Italian with Michelin stars",
+                "link": "https://www.lapergolahotelambasciatori.com",
+                "rating": 4.9,
+                "address": "Via Giuseppe Gioachino Belli 101, 00193 Roma"
+            },
+            {
+                "name": "Da Enzo al 29", 
+                "cuisine": "Rustic Italian", 
+                "price": "€€", 
+                "specialty": "Authentic Roman pasta and meat dishes",
+                "link": "https://www.daenzoal29.com",
+                "rating": 4.6,
+                "address": "Via dei Vantaggio 29, 00165 Roma"
+            },
+        ],
+        "venice": [
+            {
+                "name": "Cipriani", 
+                "cuisine": "Venetian", 
+                "price": "€€€€", 
+                "specialty": "Fresh seafood and Venetian risotto",
+                "link": "https://www.cipriani.com",
+                "rating": 4.8,
+                "address": "Isola della Giudecca 10, 30133 Venezia"
+            },
+            {
+                "name": "Osteria Bancogiro", 
+                "cuisine": "Casual Venetian", 
+                "price": "€€", 
+                "specialty": "Fresh fish and traditional cicchetti",
+                "link": "https://www.osteriabancogirovenezia.it",
+                "rating": 4.5,
+                "address": "Campo San Giacomo di Rialto, 30125 Venezia"
+            },
+            {
+                "name": "Al Covo", 
+                "cuisine": "Fine Venetian Dining", 
+                "price": "€€€", 
+                "specialty": "Refined Venetian cuisine",
+                "link": "https://www.alcovevenezia.com",
+                "rating": 4.7,
+                "address": "Campiello della Pescaria 3968, 30122 Venezia"
+            },
+        ],
+        "florence": [
+            {
+                "name": "Bacchanal Wine Bar", 
+                "cuisine": "Tuscan", 
+                "price": "€€€", 
+                "specialty": "Bistecca alla Fiorentina and Tuscan wines",
+                "link": "https://www.bacchanaltuscan.com",
+                "rating": 4.6,
+                "address": "Via Nazionale 26, 50123 Firenze"
+            },
+            {
+                "name": "Trattoria Mario", 
+                "cuisine": "Traditional Florentine", 
+                "price": "€€", 
+                "specialty": "Pasta, meat, and local Chianti",
+                "link": "https://www.trattoriamario.it",
+                "rating": 4.5,
+                "address": "Via della Ruota 27, 50129 Firenze"
+            },
+            {
+                "name": "Enoteca Pinchiorri", 
+                "cuisine": "Fine Dining", 
+                "price": "€€€€", 
+                "specialty": "Contemporary Tuscan with Michelin stars",
+                "link": "https://www.enotecapinchiorri.com",
+                "rating": 4.8,
+                "address": "Via Ghibellina 87, 50122 Firenze"
+            },
+        ],
+        "milan": [
+            {
+                "name": "Ristorante Cracco", 
+                "cuisine": "Modern Italian", 
+                "price": "€€€€", 
+                "specialty": "Innovative Lombardy cuisine",
+                "link": "https://www.ristorantecracco.it",
+                "rating": 4.8,
+                "address": "Via Victor Hugo 4, 20123 Milano"
+            },
+            {
+                "name": "Nobu Milano", 
+                "cuisine": "Japanese-Italian Fusion", 
+                "price": "€€€€", 
+                "specialty": "Omakase and Japanese-Italian fusion",
+                "link": "https://www.noburestaurants.com",
+                "rating": 4.7,
+                "address": "Via Pisoni 1, 20123 Milano"
+            },
+            {
+                "name": "Trattoria alla Scala", 
+                "cuisine": "Traditional Lombard", 
+                "price": "€€", 
+                "specialty": "Risotto alla milanese and local specialties",
+                "link": "https://www.trattoriallascala.it",
+                "rating": 4.4,
+                "address": "Piazza della Scala, 20121 Milano"
+            },
+        ],
+        "naples": [
+            {
+                "name": "L'Antica Pizzeria da Michele", 
+                "cuisine": "Neapolitan Pizza", 
+                "price": "€", 
+                "specialty": "Authentic Neapolitan pizza (no cutlery needed)",
+                "link": "https://www.damichele.net",
+                "rating": 4.6,
+                "address": "Via Cesare Sersale 1, 80139 Napoli"
+            },
+            {
+                "name": "Ristorante Veritas", 
+                "cuisine": "Fine Dining", 
+                "price": "€€€€", 
+                "specialty": "Contemporary Neapolitan with Michelin star",
+                "link": "https://www.ristoranteveritas.it",
+                "rating": 4.8,
+                "address": "Via Tasso 73, 80123 Napoli"
+            },
+            {
+                "name": "Trattoria da Nino", 
+                "cuisine": "Traditional Neapolitan", 
+                "price": "€€", 
+                "specialty": "Pasta, seafood, and local wines",
+                "link": "https://www.trattoriadanino.it",
+                "rating": 4.5,
+                "address": "Via Benedetto Croce 5, 80134 Napoli"
+            },
+        ],
+    }
+    
+    CULTURAL_SITES = {
+        "rome": [
+            {
+                "name": "Colosseum", 
+                "type": "Ancient Ruin", 
+                "rating": 4.9, 
+                "hours": "08:30-19:00",
+                "link": "https://www.colosseumrome.com",
+                "description": "Iconic ancient Roman amphitheater built in 72-80 AD. A UNESCO World Heritage site.",
+                "address": "Piazza del Colosseo, 1, 00184 Roma",
+                "ticket_price": "€18"
+            },
+            {
+                "name": "Vatican Museums", 
+                "type": "Museum", 
+                "rating": 4.8, 
+                "hours": "09:00-18:00",
+                "link": "https://www.museivaticani.va",
+                "description": "World's greatest art collection with Sistine Chapel ceiling by Michelangelo.",
+                "address": "Viale Vaticano, 00165 Roma",
+                "ticket_price": "€19"
+            },
+            {
+                "name": "Roman Forum", 
+                "type": "Ancient Site", 
+                "rating": 4.7, 
+                "hours": "08:30-19:00",
+                "link": "https://www.forumromano.info",
+                "description": "Ancient marketplace and heart of Roman political life for centuries.",
+                "address": "Via della Salara Vecchia, 5/6, 00186 Roma",
+                "ticket_price": "€12"
+            },
+            {
+                "name": "Trevi Fountain", 
+                "type": "Baroque Fountain", 
+                "rating": 4.8, 
+                "hours": "Always open",
+                "link": "https://www.trevifountain.net",
+                "description": "Spectacular Baroque fountain - toss a coin to ensure your return to Rome.",
+                "address": "Piazza di Trevi, 00187 Roma",
+                "ticket_price": "Free"
+            },
+        ],
+        "venice": [
+            {
+                "name": "St. Mark's Basilica", 
+                "type": "Church", 
+                "rating": 4.7, 
+                "hours": "09:45-17:00",
+                "link": "https://www.basilicasanmarco.com",
+                "description": "Magnificent Byzantine cathedral with golden mosaics and stunning dome.",
+                "address": "Piazza San Marco, 328, 30100 Venezia",
+                "ticket_price": "€5"
+            },
+            {
+                "name": "Doge's Palace", 
+                "type": "Palace", 
+                "rating": 4.6, 
+                "hours": "09:00-19:00",
+                "link": "https://www.palazzoducale.visitmuve.it",
+                "description": "Gothic palace that served as residence of Venetian rulers for centuries.",
+                "address": "Piazza San Marco, 1, 30100 Venezia",
+                "ticket_price": "€16"
+            },
+            {
+                "name": "Rialto Bridge", 
+                "type": "Landmark", 
+                "rating": 4.8, 
+                "hours": "Always open",
+                "link": "https://www.rialtobridge-venice.com",
+                "description": "Iconic stone bridge with vibrant market and stunning canal views.",
+                "address": "Ponte dei Sospiri, 30125 Venezia",
+                "ticket_price": "Free"
+            },
+        ],
+        "florence": [
+            {
+                "name": "Uffizi Gallery", 
+                "type": "Museum", 
+                "rating": 4.7, 
+                "hours": "08:15-18:50",
+                "link": "https://www.uffizi.it",
+                "description": "Premier Renaissance art museum with works by Botticelli, Leonardo, and Raphael.",
+                "address": "Piazzale degli Uffizi, 6, 50122 Firenze",
+                "ticket_price": "€25"
+            },
+            {
+                "name": "Florence Duomo", 
+                "type": "Cathedral", 
+                "rating": 4.7, 
+                "hours": "10:00-17:00",
+                "link": "https://www.ilgrandemuseo.it",
+                "description": "Architectural masterpiece with Brunelleschi's iconic dome.",
+                "address": "Piazza del Duomo, 50122 Firenze",
+                "ticket_price": "€18"
+            },
+            {
+                "name": "Accademia Gallery", 
+                "type": "Museum", 
+                "rating": 4.6, 
+                "hours": "08:15-18:50",
+                "link": "https://www.accademiagallery.it",
+                "description": "Home to Michelangelo's David, one of the world's most famous sculptures.",
+                "address": "Via Ricasoli, 58/60, 50122 Firenze",
+                "ticket_price": "€20"
+            },
+        ],
+        "milan": [
+            {
+                "name": "Milan Cathedral", 
+                "type": "Cathedral", 
+                "rating": 4.6, 
+                "hours": "10:00-17:00",
+                "link": "https://www.duomomilano.it",
+                "description": "Gothic cathedral with spectacular architecture and rooftop views.",
+                "address": "Piazza del Duomo, 20122 Milano",
+                "ticket_price": "€12"
+            },
+            {
+                "name": "Last Supper Museum", 
+                "type": "Museum", 
+                "rating": 4.8, 
+                "hours": "08:15-19:00",
+                "link": "https://www.cenacolovinciano.org",
+                "description": "Leonardo da Vinci's masterpiece 'The Last Supper' in the refectory of Santa Maria delle Grazie.",
+                "address": "Piazza Santa Maria delle Grazie, 2, 20123 Milano",
+                "ticket_price": "€15"
+            },
+            {
+                "name": "Scala Opera House", 
+                "type": "Theatre", 
+                "rating": 4.7, 
+                "hours": "09:00-17:30",
+                "link": "https://www.teatroallascala.org",
+                "description": "One of the world's most prestigious opera houses with museum tours.",
+                "address": "Piazza della Scala, 20121 Milano",
+                "ticket_price": "€12"
+            },
+        ],
+        "naples": [
+            {
+                "name": "Pompeii", 
+                "type": "Archaeological Site", 
+                "rating": 4.8, 
+                "hours": "08:30-19:30",
+                "link": "https://www.pompeiisites.org",
+                "description": "Preserved Roman city buried by Mount Vesuvius eruption in 79 AD.",
+                "address": "Via Villa dei Misteri, 2, 80045 Pompei",
+                "ticket_price": "€15"
+            },
+            {
+                "name": "National Museum of Naples", 
+                "type": "Museum", 
+                "rating": 4.6, 
+                "hours": "09:00-19:00",
+                "link": "https://www.museoarcheologico.it",
+                "description": "One of the world's greatest collections of Roman artifacts and mosaics.",
+                "address": "Piazza Museo, 19, 80135 Napoli",
+                "ticket_price": "€15"
+            },
+            {
+                "name": "Mount Vesuvius", 
+                "type": "Natural Landmark", 
+                "rating": 4.7, 
+                "hours": "08:30-17:00",
+                "link": "https://www.vesuviusmount.org",
+                "description": "Active volcano with crater viewpoint and archaeological significance.",
+                "address": "SS268 delle Contadelle, 80044 Ercolano",
+                "ticket_price": "€10"
+            },
+        ],
+    }
+    
+    # Language-specific patterns for greetings
+    GREETINGS_EN = {
+        "greeting": ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "greetings"],
+        "polite": ["please", "thanks", "thank you", "appreciate", "kindly"],
+        "farewell": ["bye", "goodbye", "farewell", "see you", "ciao"]
+    }
+    
+    GREETINGS_IT = {
+        "greeting": ["ciao", "salve", "buongiorno", "buonasera", "buonpomeriggio", "ehi"],
+        "polite": ["per favore", "grazie", "grazie mille", "prego", "apprezzo"],
+        "farewell": ["arrivederci", "addio", "a presto", "ciao ciao"]
+    }
+    
+    # Non-tourism rejection patterns
+    REJECTED_TOPICS_EN = ["bitcoin", "programming", "code", "politics", "weather", "sports", 
+                         "homework", "health advice", "legal advice", "investment tips"]
+    REJECTED_TOPICS_IT = ["bitcoin", "programmazione", "politica", "meteo", "sport", 
+                         "compiti", "consiglio medico", "consiglio legale", "consigli su investimenti"]
+    
+    def __init__(self):
+        self.conversation_history = []
+        self.context = ConversationContext()
+    
+    def detect_language(self, text: str) -> Language:
+        """
+        Detect whether text is in English or Italian
+        Returns: Language enum
+        """
+        import re
+        text_lower = text.lower()
+        
+        # Italian-specific characters - strong indicator
+        italian_chars = ["è", "à", "ò", "ù", "ì", "é"]
+        if any(char in text_lower for char in italian_chars):
+            self.context.language = Language.ITALIAN
+            return Language.ITALIAN
+        
+        # Italian-specific words with word boundaries
+        italian_words = ["che", "per", "una", "questo", "quale", "dove", "cosa", 
+                        "albergo", "ristorante", "visitare", "tour", "viaggiare",
+                        "vorrei", "posso", "ciao", "buongiorno", "buonasera", "grazie",
+                        "per favore", "arrivederci", "bellissimo", "meraviglioso", "magnifico",
+                        "inizio", "palazzo", "piazza", "cattedrale", "cappella"]
+        
+        # English-specific words with word boundaries
+        english_words = ["the", "and", "is", "are", "this", "that", "have", "been",
+                        "hello", "good", "thank", "please", "goodbye", "amazing",
+                        "beautiful", "wonderful", "would", "could", "should"]
+        
+        # Use word boundary matching
+        italian_count = sum(1 for word in italian_words if re.search(r'\b' + word + r'\b', text_lower))
+        english_count = sum(1 for word in english_words if re.search(r'\b' + word + r'\b', text_lower))
+        
+        # If Italian words significantly outnumber English, it's Italian
+        if italian_count > english_count:
+            self.context.language = Language.ITALIAN
+            return Language.ITALIAN
+        elif italian_count > 0 and english_count == 0:
+            # If we found Italian words and no English words, it's Italian
+            self.context.language = Language.ITALIAN
+            return Language.ITALIAN
+        
+        self.context.language = Language.ENGLISH
+        return Language.ENGLISH
+    
+    def is_greeting(self, text: str, language: Language) -> bool:
+        """Check if message is a greeting - STRICT word boundary matching"""
+        import re
+        text_lower = text.lower().strip()
+        patterns = self.GREETINGS_IT if language == Language.ITALIAN else self.GREETINGS_EN
+        
+        # Only match greetings at the beginning or as standalone words
+        greeting_patterns = patterns.get("greeting", [])
+        for greeting in greeting_patterns:
+            # Match at start, with word boundaries, or standalone
+            if text_lower.startswith(greeting) or re.search(r'\b' + greeting + r'\b', text_lower):
+                # If it's a simple greeting without other complex content, it's a greeting
+                words = text_lower.split()
+                if len(words) <= 3 or any(word == greeting for word in words[:2]):
+                    return True
+        
+        return False
+    
+    def is_farewell(self, text: str, language: Language) -> bool:
+        """Check if message is a farewell - STRICT word boundary matching"""
+        import re
+        text_lower = text.lower().strip()
+        patterns = self.GREETINGS_IT if language == Language.ITALIAN else self.GREETINGS_EN
+        
+        # Only match farewells at the beginning or as standalone words
+        farewell_patterns = patterns.get("farewell", [])
+        for farewell in farewell_patterns:
+            # Match at start, with word boundaries, or standalone
+            if text_lower.startswith(farewell) or re.search(r'\b' + farewell + r'\b', text_lower):
+                # If it's a simple farewell without other complex content, it's a farewell
+                words = text_lower.split()
+                if len(words) <= 3 or any(word == farewell for word in words[:2]):
+                    return True
+        
+        return False
+    
+    def is_polite(self, text: str, language: Language) -> bool:
+        """Check if message contains polite words"""
+        text_lower = text.lower()
+        patterns = self.GREETINGS_IT if language == Language.ITALIAN else self.GREETINGS_EN
+        return any(word in text_lower for word in patterns.get("polite", []))
+    
+    def is_tourism_related(self, text: str, language: Language) -> bool:
+        """Check if message is about tourism/Italy travel - STRICT filtering"""
+        text_lower = text.lower()
+        
+        # Non-tourism topics to reject
+        rejected_topics = {
+            "technical": ["code", "python", "javascript", "programming", "bug", "error", "function", "program", "debug", "software", "api", "database", "sql", "html", "css"],
+            "academic": ["homework", "assignment", "test", "exam", "grade", "study", "essay", "question answer", "math", "biology", "physics", "chemistry", "history date"],
+            "personal": ["my life", "my job", "my work", "my love", "my relationship", "my problem", "my health", "my money", "disease", "illness", "sick", "doctor"],
+            "politics": ["politics", "election", "vote", "government", "president", "minister", "parliament", "law", "legal", "court", "judge"],
+            "sports": ["football", "soccer", "basketball", "tennis", "hockey", "baseball", "game score", "match result", "team", "player"],
+            "tech_gadgets": ["laptop", "phone", "iphone", "android", "windows", "mac", "computer", "tablet", "tv", "camera"],
+            "news": ["news", "weather", "stock", "market", "bitcoin", "crypto", "company", "business report"],
+            "entertainment": ["movie", "film", "series", "show", "episode", "character", "actor", "singer", "music band"],
+        }
+        
+        # Check if text contains rejected topics
+        for category, keywords in rejected_topics.items():
+            if any(keyword in text_lower for keyword in keywords):
+                return False
+        
+        # Tourism/Italy keywords that MUST be present
+        tourism_keywords = [
+            # Accommodation
+            "hotel", "albergo", "stay", "sleep", "dormir", "lodge", "hostel", "apartment", "room", "camera", "camera",
+            # Food/Dining
+            "restaurant", "ristorante", "eat", "dining", "dinner", "lunch", "cena", "pranzo", "food", "cibo", "mangiare", "cuisin",
+            # Activities
+            "visit", "see", "tour", "visit", "explore", "visitare", "esplorare", "attraction", "place", "place to go",
+            # Culture
+            "museum", "museo", "musei", "art", "arte", "church", "chiesa", "monument", "monumento",
+            # Travel/Trip  
+            "travel", "trip", "voyage", "journey", "vacation", "holiday", "break", "weekend", "travel", "viaggio", "vacanza",
+            # Italy-specific
+            "italy", "italia", "italian", "rome", "roma", "venice", "venezia", "florence", "firenze", "milan", "milano", "naples", "napoli",
+            # Common request words with Italy context  
+            "where", "where to", "best", "recommendations", "suggest", "cosa", "dove", "dove andrare", "migliori",
+        ]
+        
+        # Count how many tourism keywords are present
+        tourism_keyword_count = sum(1 for keyword in tourism_keywords if keyword in text_lower)
+        
+        # Must have at least one tourism keyword
+        if tourism_keyword_count > 0:
+            return True
+        
+        # If no tourism keywords found, it's not tourism-related
+        return False
+    
+    def extract_region(self, user_input: str) -> Optional[str]:
+        """Extract Italian region/city from user input (supports both languages)"""
+        regions = {
+            "rome": ["rome", "roma", "lazio", "vatican", "vaticano"],
+            "venice": ["venice", "venezia", "veneto", "canal", "canale"],
+            "florence": ["florence", "firenze", "tuscany", "toscana", "uffizi"],
+            "milan": ["milan", "milano", "lombardy", "lombardia"],
+            "naples": ["naples", "napoli", "campania", "pompeii", "pompei"],
+        }
+        
+        input_lower = user_input.lower()
+        for region, keywords in regions.items():
+            if any(keyword in input_lower for keyword in keywords):
+                self.context.last_region = region
+                return region
+        
+        # Return last known region if context available
+        if self.context.last_region:
+            return self.context.last_region
+        
+        return None
+    
+    def extract_intent(self, user_input: str) -> str:
+        """Determine what user is looking for (language-agnostic) - more specific matching"""
+        input_lower = user_input.lower()
+        
+        # Specific keywords in order of priority - check specific before general
+        specific_intents = {
+            "hotel": ["hotel", "accommodation", "stay", "lodging", "sleep", "room", "albergo", "soggiorno", "camera", "dove dormire", "dove alloggiare"],
+            "restaurant": ["restaurant", "ristorante", "eat", "ristoranti", "dine", "dining", "food", "dinner", "lunch", "cena", "pranzo", "dove mangiare"],
+            "culture": ["museum", "museums", "cultural", "art", "history", "ancient", "monument", "church", "museo", "musei", "arte", "storia", "chiesa"],
+            "activity": ["visit", "explore", "tour", "tours", "see", "see the", "what do", "thing to do", "visitare", "esplorare", "attività", "cosa fare"],
+        }
+        
+        # Check for specific keywords first (most exact match)
+        for intent, keywords in specific_intents.items():
+            for keyword in keywords:
+                if keyword in input_lower:
+                    self.context.last_intent = intent
+                    return intent
+        
+        # Default to general if no specific intent found
+        return "general"
+    
+    def extract_budget(self, user_input: str) -> str:
+        """Extract price preference from user input"""
+        input_lower = user_input.lower()
+        
+        # Check for budget preferences
+        luxury_keywords = ["luxury", "5-star", "five star", "expensive", "haute", "best", "finest", "€€€€", "lusso", "stellato"]
+        mid_keywords = ["4-star", "four star", "nice", "good", "comfortable", "€€€", "buono", "comodo"]
+        budget_keywords = ["budget", "cheap", "affordable", "3-star", "three star", "€€", "economico", "conveniente", "economical"]
+        
+        if any(keyword in input_lower for keyword in luxury_keywords):
+            return "luxury"
+        elif any(keyword in input_lower for keyword in budget_keywords):
+            return "budget"
+        elif any(keyword in input_lower for keyword in mid_keywords):
+            return "mid"
+        
+        return "any"  # No preference specified
+    
+    def extract_min_rating(self, user_input: str) -> float:
+        """Extract minimum rating preference from user input"""
+        input_lower = user_input.lower()
+        
+        # Check for quality preferences
+        if any(word in input_lower for word in ["best", "top", "highly rated", "top rated", "migliori", "eccellente"]):
+            return 4.6  # Top rated only
+        elif any(word in input_lower for word in ["good", "quality", "nice", "buono", "qualità"]):
+            return 4.3  # Good quality
+        elif any(word in input_lower for word in ["budget", "cheap", "economico"]):
+            return 4.0  # Budget but still decent
+        
+        return 3.0  # Any rating
+    
+    def get_greeting_response(self, language: Language) -> str:
+        """Generate appropriate greeting response"""
+        if language == Language.ITALIAN:
+            responses = [
+                "Ciao! Benvenuto in Italia! 🇮🇹 Sono la tua guida turistica AI. Posso aiutarti a trovare hotel, ristoranti, siti culturali e attività in tutta Italia. Dove pensi di andare?",
+                "Buongiorno! Sono felicissimo di aiutarti a pianificare il tuo viaggio italiano. Dammi un città e il tipo di esperienza che cerchi!",
+                "Ehi! Ti aiuterò a scoprire il meglio dell'Italia. Che sia Roma, Venezia, Firenze o oltre - dimmi dove e ti darò i migliori consigli! 🏛️"
+            ]
+        else:
+            responses = [
+                "Hello! Welcome to Italy! 🇮🇹 I'm your AI tourism guide. I can help you find hotels, restaurants, cultural sites, and activities across Italy. Where are you planning to go?",
+                "Hi there! I'm excited to help you plan an amazing Italian vacation. Tell me a city and what kind of experience you're looking for!",
+                "Hey! I'll help you discover the best of Italy. Whether it's Rome, Venice, Florence, or beyond - tell me where and I'll give you the best recommendations! 🏛️"
+            ]
+        
+        import random
+        return random.choice(responses)
+    
+    def get_farewell_response(self, language: Language) -> str:
+        """Generate appropriate farewell response"""
+        if language == Language.ITALIAN:
+            responses = [
+                "Arrivederci! Divertiti in Italia! 🇮🇹",
+                "A presto! Spero di averti aiutato a pianificare un meraviglioso viaggio italiano!",
+                "Ciao! Buon viaggio e buon appetito! 🍝"
+            ]
+        else:
+            responses = [
+                "Goodbye! Have an amazing time in Italy! 🇮🇹",
+                "See you soon! Hope I helped you plan a wonderful Italian adventure!",
+                "Bye! Enjoy your trip and buon appetito! 🍝"
+            ]
+        
+        import random
+        return random.choice(responses)
+    
+    def get_rejection_response(self, language: Language) -> str:
+        """Generate response for non-tourism questions"""
+        if language == Language.ITALIAN:
+            return "Mi dispiace, ma posso aiutarti solo con domande sul turismo e i viaggi in Italia. Posso consigliarti hotel, ristoranti, musei, e attività turistiche. Che cosa vorresti visitare?"
+        else:
+            return "I'm sorry, but I can only help with tourism and travel questions about Italy. I can recommend hotels, restaurants, museums, and tourist activities. What would you like to visit?"
+    
+    def get_recommendations(self, user_input: str, language: Language) -> Dict:
+        """Generate personalized recommendations with smart filtering - STRICT intent matching"""
+        region = self.extract_region(user_input)
+        intent = self.extract_intent(user_input)
+        budget = self.extract_budget(user_input)
+        min_rating = self.extract_min_rating(user_input)
+        
+        # Default to Rome if no region specified
+        if not region:
+            region = "rome"
+        
+        region_key = region.split()[0].lower()
+        
+        recommendations = {
+            "region": region,
+            "intent": intent,
+            "recommendations": [],
+            "language": language.value,
+            "budget": budget,
+            "min_rating": min_rating
+        }
+        
+        def matches_budget(item: Dict) -> bool:
+            """Check if item matches budget preference"""
+            if budget == "any":
+                return True
+            
+            price = item.get("price", "")
+            if budget == "luxury":
+                return "€€€€" in price or price == "€€€€"
+            elif budget == "mid":
+                return "€€€" in price
+            elif budget == "budget":
+                return "€" in price and "€€€" not in price
+            return True
+        
+        def matches_rating(item: Dict) -> bool:
+            """Check if item meets rating preference"""
+            rating = item.get("rating", 0)
+            return rating >= min_rating
+        
+        limit = 5  # Return more items
+        
+        # STRICT intent matching - only return what user asked for
+        if intent == "hotel":
+            hotels = self.HOTEL_RECOMMENDATIONS.get(region_key, [])
+            hotel_count = 0
+            for hotel in hotels:
+                if hotel_count >= limit:
+                    break
+                if matches_budget(hotel) and matches_rating(hotel):
+                    recommendations["recommendations"].append({
+                        "type": "hotel",
+                        "icon": "🏨",
+                        "name": hotel["name"],
+                        "details": f"{hotel['type']} • {hotel['price']} • ⭐{hotel['rating']}",
+                        "description": hotel["description"],
+                        "link": hotel["link"],
+                        "address": hotel.get("address", ""),
+                    })
+                    hotel_count += 1
+        
+        elif intent == "restaurant":
+            restaurants = self.RESTAURANT_RECOMMENDATIONS.get(region_key, [])
+            rest_count = 0
+            for restaurant in restaurants:
+                if rest_count >= limit:
+                    break
+                if matches_budget(restaurant) and matches_rating(restaurant):
+                    recommendations["recommendations"].append({
+                        "type": "restaurant",
+                        "icon": "🍝",
+                        "name": restaurant["name"],
+                        "details": f"{restaurant['cuisine']} • {restaurant['price']} • ⭐{restaurant['rating']}",
+                        "description": restaurant['specialty'],
+                        "link": restaurant["link"],
+                        "address": restaurant.get("address", ""),
+                    })
+                    rest_count += 1
+        
+        elif intent == "culture":
+            sites = self.CULTURAL_SITES.get(region_key, [])
+            site_count = 0
+            for site in sites:
+                if site_count >= limit:
+                    break
+                if matches_rating(site):
+                    recommendations["recommendations"].append({
+                        "type": "culture",
+                        "icon": "🏛️",
+                        "name": site["name"],
+                        "details": f"{site['type']} • ⭐{site['rating']} • {site['ticket_price']}",
+                        "description": site["description"],
+                        "link": site["link"],
+                        "address": site.get("address", ""),
+                        "hours": site.get("hours", "TBD")
+                    })
+                    site_count += 1
+        
+        elif intent == "activity":
+            sites = self.CULTURAL_SITES.get(region_key, [])
+            site_count = 0
+            for site in sites:
+                if site_count >= limit:
+                    break
+                if matches_rating(site):
+                    recommendations["recommendations"].append({
+                        "type": "culture",
+                        "icon": "🚶",
+                        "name": site["name"],
+                        "details": f"{site['type']} • ⭐{site['rating']} • {site['ticket_price']}",
+                        "description": site["description"],
+                        "link": site["link"],
+                        "address": site.get("address", ""),
+                        "hours": site.get("hours", "TBD")
+                    })
+                    site_count += 1
+        
+        else:  # General intent - return mix of all categories
+            limit_per_category = 2
+            
+            # Hotels
+            hotels = self.HOTEL_RECOMMENDATIONS.get(region_key, [])
+            hotel_count = 0
+            for hotel in hotels:
+                if hotel_count >= limit_per_category:
+                    break
+                if matches_budget(hotel) and matches_rating(hotel):
+                    recommendations["recommendations"].append({
+                        "type": "hotel",
+                        "icon": "🏨",
+                        "name": hotel["name"],
+                        "details": f"{hotel['type']} • {hotel['price']} • ⭐{hotel['rating']}",
+                        "description": hotel["description"],
+                        "link": hotel["link"],
+                        "address": hotel.get("address", ""),
+                    })
+                    hotel_count += 1
+            
+            # Restaurants
+            restaurants = self.RESTAURANT_RECOMMENDATIONS.get(region_key, [])
+            rest_count = 0
+            for restaurant in restaurants:
+                if rest_count >= limit_per_category:
+                    break
+                if matches_budget(restaurant) and matches_rating(restaurant):
+                    recommendations["recommendations"].append({
+                        "type": "restaurant",
+                        "icon": "🍝",
+                        "name": restaurant["name"],
+                        "details": f"{restaurant['cuisine']} • {restaurant['price']} • ⭐{restaurant['rating']}",
+                        "description": restaurant['specialty'],
+                        "link": restaurant["link"],
+                        "address": restaurant.get("address", ""),
+                    })
+                    rest_count += 1
+            
+            # Culture
+            sites = self.CULTURAL_SITES.get(region_key, [])
+            site_count = 0
+            for site in sites:
+                if site_count >= limit_per_category:
+                    break
+                if matches_rating(site):
+                    recommendations["recommendations"].append({
+                        "type": "culture",
+                        "icon": "🏛️",
+                        "name": site["name"],
+                        "details": f"{site['type']} • ⭐{site['rating']} • {site['ticket_price']}",
+                        "description": site["description"],
+                        "link": site["link"],
+                        "address": site.get("address", ""),
+                        "hours": site.get("hours", "TBD")
+                    })
+                    site_count += 1
+        
+        return recommendations
+    
+    def generate_response(self, user_input: str, language: Language) -> str:
+        """Generate conversational response with smart context awareness"""
+        region = self.extract_region(user_input)
+        intent = self.extract_intent(user_input)
+        budget = self.extract_budget(user_input)
+        
+        region_name = region.title() if region else ("Italy" if language == Language.ENGLISH else "Italia")
+        
+        # Build response with budget context
+        budget_context = {
+            "luxury": (" luxury options", " opzioni di lusso"),
+            "mid": (" mid-range options", " opzioni mid-range"),
+            "budget": (" affordable options", " opzioni economiche"),
+            "any": ("", "")
+        }
+        
+        budget_en, budget_it = budget_context.get(budget, ("", ""))
+        
+        if language == Language.ITALIAN:
+            if intent == "hotel":
+                return f"Ti aiuto a trovare l'alloggio perfetto in {region_name}! 🏨 Ecco i migliori hotel{budget_it} con dettagli su prezzi e servizi."
+            elif intent == "restaurant":
+                return f"Perfetto! Ecco i ristoranti più deliziosi in {region_name}{budget_it}. 🍝 Ho selezionato per te cucina autentica e specialità locali."
+            elif intent == "culture":
+                return f"Splendido! Ecco le attrazioni culturali imprescindibili in {region_name}. 🏛️ Include musei, monumenti storici e siti UNESCO con orari e tariffe."
+            elif intent == "activity":
+                return f"Meraviglioso! Ti mostro le migliori cose da fare in {region_name}. 🚶 Esperienze autentiche, tour guidati e attività locali ti aspettano!"
+            else:
+                return f"Benvenuto a {region_name}! ✨ Ho trovato alcune opzioni interessanti per te. Che cosa ne pensi? Posso approfondire ulteriormente!"
+        else:
+            if intent == "hotel":
+                return f"I'd love to help you find the perfect accommodation in {region_name}! 🏨 Here are the best hotels{budget_en} with pricing and amenity details."
+            elif intent == "restaurant":
+                return f"Perfect! Here are the most delicious restaurants in {region_name}{budget_en}. 🍝 I've selected authentic cuisine and local specialties just for you."
+            elif intent == "culture":
+                return f"Wonderful! Here are the must-see cultural attractions in {region_name}. 🏛️ Includes museums, historic monuments, and UNESCO sites with hours and admission fees."
+            elif intent == "activity":
+                return f"Fantastic! Here's what to do in {region_name}. 🚶 Authentic experiences, guided tours, and local activities are waiting for you!"
+            else:
+                return f"Welcome to {region_name}! ✨ I found some great options for you. What do you think? I can dive deeper if you'd like!"
+    
+    def chat(self, user_message: str, language_override: Optional[str] = None) -> Dict:
+        """
+        Process user message and return recommendations
+        
+        Args:
+            user_message: The user's input text
+            language_override: Force language ('en' or 'it'), otherwise auto-detect
+        """
+        self.context.conversation_turn += 1
+        
+        # Use provided language or detect from message
+        if language_override:
+            language = Language.ITALIAN if language_override.lower() == 'it' else Language.ENGLISH
+        else:
+            language = self.detect_language(user_message)
+        
+        # Check for special message types
+        if self.is_greeting(user_message, language):
+            response = self.get_greeting_response(language)
+            self.conversation_history.append({
+                "user": user_message,
+                "assistant": response,
+                "timestamp": datetime.utcnow().isoformat(),
+                "recommendations": [],
+                "type": "greeting"
+            })
+            return {
+                "response": response,
+                "recommendations": [],
+                "region": None,
+                "intent": "greeting",
+                "language": language.value,
+                "type": "greeting"
+            }
+        
+        if self.is_farewell(user_message, language):
+            response = self.get_farewell_response(language)
+            self.conversation_history.append({
+                "user": user_message,
+                "assistant": response,
+                "timestamp": datetime.utcnow().isoformat(),
+                "recommendations": [],
+                "type": "farewell"
+            })
+            return {
+                "response": response,
+                "recommendations": [],
+                "region": None,
+                "intent": "farewell",
+                "language": language.value,
+                "type": "farewell"
+            }
+        
+        # Check if message is tourism-related
+        if not self.is_tourism_related(user_message, language):
+            response = self.get_rejection_response(language)
+            self.conversation_history.append({
+                "user": user_message,
+                "assistant": response,
+                "timestamp": datetime.utcnow().isoformat(),
+                "recommendations": [],
+                "type": "rejection"
+            })
+            return {
+                "response": response,
+                "recommendations": [],
+                "region": None,
+                "intent": "rejected",
+                "language": language.value,
+                "type": "rejection"
+            }
+        
+        # Generate recommendations
+        recommendations_data = self.get_recommendations(user_message, language)
+        response = self.generate_response(user_message, language)
+        
+        self.conversation_history.append({
+            "user": user_message,
+            "assistant": response,
+            "timestamp": datetime.utcnow().isoformat(),
+            "recommendations": recommendations_data["recommendations"],
+            "language": language.value
+        })
+        
+        return {
+            "response": response,
+            "recommendations": recommendations_data["recommendations"],
+            "region": recommendations_data["region"],
+            "intent": recommendations_data["intent"],
+            "language": language.value,
+            "type": "recommendation"
+        }
+
+
+# Global recommender instance
+recommender = TouristRecommender()

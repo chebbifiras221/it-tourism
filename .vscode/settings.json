@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd \"C:\\\\Users\\\\ideap\\\\Desktop\\\\it project\\\\italy-tourism-insights\\\\backend\" ; python -m venv venv$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
