@@ -1,6 +1,6 @@
 # 🇮🇹 Italian Tourism Intelligence Dashboard - Final Project Report
 
-**University-Grade Data Science & Full-Stack Web Development Project**
+**Data Science & Full-Stack Web Development Project**
 
 ---
 
