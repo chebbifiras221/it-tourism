@@ -43,7 +43,11 @@ A production-ready, full-stack application combining **data science analytics**,
 - Git version control
 
 ---
+## 📸 Screenshots
 
+![Screenshot 1](./sa1.png)  
+![Screenshot 2](./sa2.png)  
+![Screenshot 2](./sa3.png)  
 ## Architecture
 
 ### System Design
